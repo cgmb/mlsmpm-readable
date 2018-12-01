@@ -1,0 +1,35 @@
+cmake_minimum_required(VERSION 2.8.11)
+
+project(mlsmpm)
+
+# Use modern C++
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+
+
+include_directories("${PROJECT_BINARY_DIR}")
+
+find_package(OpenGL REQUIRED)
+set(LIBRARIES ${LIBRARIES} ${OPENGL_gl_LIBRARY})
+
+FIND_PACKAGE(OpenMP REQUIRED)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -lX11 -lpthread -O3")# -Wall")#-Werror")
+
+if(UNIX)
+    set(LIBRARIES ${LIBRARIES} pthread GL stdc++fs X11)
+endif(UNIX)
+
+file(GLOB SOURCES mls-mpm88.cpp)
+
+add_executable(mls-mpm88 ${SOURCES})
+target_compile_definitions(mls-mpm88 PRIVATE GLM_FORCE_CXX14=1 _USE_MATH_DEFINES=1)
