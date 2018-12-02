@@ -1,9 +1,9 @@
-//88-Line 2D Moving Least Squares Material Point Method (MLS-MPM)[with comments]
+// 2D Moving Least Squares Material Point Method (MLS-MPM) [with comments]
 #define TC_IMAGE_IO
 #include "taichi.h"
 using namespace taichi;
-using Vec = Vector2;
-using Mat = Matrix2;
+using Vec2 = Vector2;
+using Mat2 = Matrix2;
 
 /* grid_resolution (cells) */
 const int n = 80,
@@ -20,95 +20,118 @@ auto hardening = 10.0_f,
 real mu_0 = E / (2 * (1 + nu)),
      lambda_0 = E * nu / ((1+nu) * (1 - 2 * nu));
 
-bool plastic = false;
+bool plastic = true;
 
 struct Particle {
-    Vec x,
-        v;
-    Mat F,
-        C;
-    real Jp;
-    int c/*color*/;
-    Particle(Vec x, int c, Vec v=Vec(0))
+    Vec2 x,  // position
+         v;  // velocity
+    Mat2 F,  // deformation gradient
+         C;  // velocity field
+    real Jp; // Jacobian determinant
+    int c;   // color
+
+    Particle(Vec2 x, int c, Vec2 v=Vec2(0))
         : x(x), v(v), F(1), C(0), Jp(1), c(c)
     {}
 };
 
 std::vector<Particle> particles;
 
-// velocity + mass, node_res = cell_res + 1
-Vector3 grid[n + 1][n + 1];
+struct GridCell {
+    Vec2 p;  // momentum
+    float m; // mass
+};
+
+// node_res = cell_res + 1
+GridCell grid[n + 1][n + 1];
+Vec2 grid_velocity[n + 1][n + 1];
+
+void reset_grid() {
+    std::memset(grid, 0, sizeof(grid));
+    std::memset(grid_velocity, 0, sizeof(grid_velocity));
+}
 
 void advance(real dt) {
-    // Reset grid
-    std::memset(grid, 0, sizeof(grid));
+    reset_grid();
+
     // Particles to grid transfer
     for (auto &p : particles) {
         // element-wise floor
-        Vector2i base_coord= ( p.x * inv_dx - Vec(0.5_f) ).cast<int>();
-        Vec fx = p.x * inv_dx - base_coord.cast<real>();
+        Vector2i base_coord = (p.x * inv_dx - Vec2(0.5)).cast<int>();
+        Vec2 fx = p.x * inv_dx - base_coord.cast<real>();
         // Quadratic kernels  [http://mpm.graphics   Eqn. 123, with x=fx, fx-1,fx-2]
-        Vec w[3]{
-            Vec(0.5) * sqr(Vec(1.5) - fx),
-            Vec(0.75) - sqr(fx - Vec(1.0)),
-            Vec(0.5) * sqr(fx - Vec(0.5))
+        Vec2 w[3]{
+            Vec2(0.5) * sqr(Vec2(1.5) - fx),
+            Vec2(0.75) - sqr(fx - Vec2(1.0)),
+            Vec2(0.5) * sqr(fx - Vec2(0.5))
         };
-        auto e = std::exp(hardening * (1.0_f - p.Jp)),
-             mu=mu_0*e,
-             lambda=lambda_0*e;
+        // MPM Course Notes (Snow Plasticity), Eq'n 87 (p.26)
+        auto e = std::exp(hardening * (1.f - p.Jp)),
+             mu = mu_0 * e,
+             lambda = lambda_0 * e;
 
         // Current volume
         real J = determinant(p.F);
 
         //Polar decomp. for fixed corotated model
-        Mat r, s;
+        Mat2 r, s;
         polar_decomp(p.F, r, s);
-        // Cauchy stress times dt and inv_dx
-        auto stress =
-            -4*inv_dx*inv_dx*dt*vol*(2*mu*(p.F-r) * transposed(p.F)+lambda*(J-1)*J);
 
-        auto affine = stress+particle_mass*p.C;
+        // Piola-Kirchhoff stress times Fᵀ
+        // MPM Course Notes, Eq'n 52 (p.20)
+        // MLS-MPM Paper notes below Eq'n 18
+        auto PFt = 2*mu*(p.F-r)*transposed(p.F) + lambda*(J-1)*J;
+        // Inverse mass for quadratic B-splines, MLS-MPM Paper below Eq'n 15
+        auto inv_Mp = 4*inv_dx*inv_dx;
+        // MLS-MPM Paper, Eq'n 18 (f_i = -∂E/∂x_i)
+        auto f_p = -inv_Mp*vol*PFt;
+        // Q_p from p.11 of the MLS-MPM Paper
+        auto affine_momentum = f_p*dt + particle_mass*p.C;
 
+        // Scatter mass and momentum to grid
         for (int i = 0; i < 3; i++) {
-            for (int j = 0; j < 3; j++) { // Scatter to grid
-                auto dpos = (Vec(i, j) - fx) * dx;
-                //translational momentum
-                Vector3 mv(p.v * particle_mass, particle_mass);
-                grid[base_coord.x + i][base_coord.y + j] +=
-                    w[i].x*w[j].y * (mv + Vector3(affine*dpos, 0));
+            for (int j = 0; j < 3; j++) {
+                auto dpos = (Vec2(i, j) - fx) * dx;
+                auto w_ij = w[i].x*w[j].y;
+                auto &g = grid[base_coord.x + i][base_coord.y + j];
+                // translational momentum
+                Vec2 mv = p.v*particle_mass;
+                // add velocity field momentum & change due to stress forces
+                g.p += w_ij * (mv + affine_momentum*dpos);
+                g.m += w_ij * particle_mass;
             }
         }
     }
 
-
-    // For all grid nodes
+    // Calculate velocity for grid cells
     #if defined(_OPENMP)
         #pragma omp parallel for
     #endif
     for(int i = 0; i <= n; i++) {
         for(int j = 0; j <= n; j++) {
             auto &g = grid[i][j];
-            // No need for epsilon here
-            if (g[2] > 0) {
-                // Normalize by mass
-                g /= g[2];
+            auto &gv = grid_velocity[i][j];
+            // No need for fuzzy comparison here
+            if (g.m > 0) {
+                // Get velocity from momentum
+                gv = g.p / g.m;
 
                 // Gravity
-                g += dt * Vector3(0, -200, 0);
+                gv.y -= 200 * dt;
 
                 // boundary thick.,node coord
                 real boundary=0.05,
                      x=(real)i/n,
                      y=real(j)/n;
 
-                // Sticky
+                // Ceiling and Walls use "Sticky" collision handling
                 if (x < boundary||x > 1-boundary||y > 1-boundary) {
-                    g=Vector3(0);
+                    gv = Vec2(0);
                 }
 
-                // "Separate"
+                // Floor uses "Separate" collision handling
                 if (y < boundary) {
-                    g[1] = std::max(0.0_f, g[1]);
+                    gv.y = std::max(0.f, gv.y);
                 }
             }
         }
@@ -119,57 +142,57 @@ void advance(real dt) {
         //#pragma omp parallel for
     //#endif
     for (auto &p : particles) {
-        Vector2i base_coord=(p.x*inv_dx-Vec(0.5_f)).cast<int>();//element-wise floor
-        Vec fx = p.x * inv_dx - base_coord.cast<real>();
-        Vec w[3]{
-            Vec(0.5) * sqr(Vec(1.5) - fx),
-            Vec(0.75) - sqr(fx - Vec(1.0)),
-            Vec(0.5) * sqr(fx - Vec(0.5))
+        Vector2i base_coord = (p.x*inv_dx - Vec2(0)).cast<int>(); // element-wise floor
+        Vec2 fx = p.x * inv_dx - base_coord.cast<real>();
+        Vec2 w[3]{
+            Vec2(0.5) * sqr(Vec2(1.5) - fx),
+            Vec2(0.75) - sqr(fx - Vec2(1.0)),
+            Vec2(0.5) * sqr(fx - Vec2(0.5))
         };
-        p.C = Mat(0);
-        p.v = Vec(0);
+        p.C = Mat2(0);
+        p.v = Vec2(0);
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3; j++) {
-                auto dpos = (Vec(i, j) - fx),
-                    grid_v = Vec(grid[base_coord.x + i][base_coord.y + j]);
+                auto dpos = (Vec2(i, j) - fx),
+                    grid_v = grid_velocity[base_coord.x + i][base_coord.y + j];
                 auto weight = w[i].x * w[j].y;
                 // Velocity
                 p.v += weight * grid_v;
                 // APIC C
-                p.C += 4 * inv_dx * Mat::outer_product(weight * grid_v, dpos);
+                p.C += 4 * inv_dx * Mat2::outer_product(weight * grid_v, dpos);
             }
         }
         // Advection
         p.x += dt * p.v;
-        // MLS-MPM F-update
-        auto F = (Mat(1) + dt * p.C) * p.F;
+        // MLS-MPM F-update, MPM Course Notes Eq'n 180,181
+        // or MLS-MPM Paper, Eq'n 17
+        auto F = (Mat2(1) + dt * p.C) * p.F;
         // Calculate the SVD of F
-        Mat svd_u, sig, svd_v;
+        Mat2 svd_u, sig, svd_v;
         svd(F, svd_u, sig, svd_v);
-        // Snow Plasticity
+        // Snow Plasticity, MPM Course Notes Eq'n 82 (p.26)
         for (int i = 0; i < 2 * int(plastic); i++) {
-            sig[i][i] = clamp(sig[i][i], 1.0_f - 2.5e-2_f, 1.0_f + 7.5e-3_f);
+            sig[i][i] = clamp(sig[i][i], 1.f - 2.5e-2f, 1.f + 7.5e-3f);
         }
         real oldJ = determinant(F);
         F = svd_u * sig * transposed(svd_v);
-        p.Jp = clamp(p.Jp * oldJ / determinant(F), 0.6_f, 20.0_f);
+        p.Jp = clamp(p.Jp * oldJ / determinant(F), 0.6f, 20.f);
         p.F = F;
     }
 }
 // Seed particles with position and color
-void add_object(Vec center, int c) {
+void add_object(Vec2 center, int c) {
   // Randomly sample 1000 particles in the square
     for (int i = 0; i < 500; i++) {
-        particles.push_back(Particle((Vec::rand()*2.0_f-Vec(1))*0.08_f + center, c));
+        particles.push_back(Particle((Vec2::rand()*2.f-Vec2(1))*0.08f + center, c));
     }
 }
 int main() {
     GUI gui("Real-time 2D MLS-MPM", window_size, window_size);
-    add_object(Vec(0.55,0.45), 0xED553B);
-    add_object(Vec(0.45,0.65), 0xF2B134);
-    add_object(Vec(0.55,0.85), 0x068587);
+    add_object(Vec2(0.55,0.45), 0xED553B);
+    add_object(Vec2(0.45,0.65), 0xF2B134);
+    add_object(Vec2(0.55,0.85), 0x068587);
     auto &canvas = gui.get_canvas();
-    int f=0;
 
     // Main Loop
     for (int i = 0;; i++) {
@@ -180,7 +203,7 @@ int main() {
             // Clear background
             canvas.clear(0x112F41);
             // Box
-            canvas.rect(Vec(0.04), Vec(0.96)).radius(2).color(0x4FB99F).close();
+            canvas.rect(Vec2(0.04), Vec2(0.96)).radius(2).color(0x4FB99F).close();
             for(auto p: particles) {
                 //Particles
                 canvas.circle(p.x).radius(2).color(p.c);
