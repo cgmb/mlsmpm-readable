@@ -55,7 +55,12 @@ void advance(real dt) {
     reset_grid();
 
     // Particles to grid transfer
-    for (auto &p : particles) {
+    #if defined(_OPENMP)
+        #pragma omp parallel for
+    #endif
+    for (size_t i = 0; i < particles.size(); ++i) {
+    //for (auto &p : particles) {
+        auto &p = particles[i];
         // element-wise floor
         Vector2i base_coord = (p.x * inv_dx - Vec2(0.5)).cast<int>();
         Vec2 fx = p.x * inv_dx - base_coord.cast<real>();
@@ -138,11 +143,13 @@ void advance(real dt) {
     }
 
     // Grid to particle
-    //#if defined(_OPENMP)
-        //#pragma omp parallel for
-    //#endif
-    for (auto &p : particles) {
-        Vector2i base_coord = (p.x*inv_dx - Vec2(0)).cast<int>(); // element-wise floor
+    #if defined(_OPENMP)
+        #pragma omp parallel for
+    #endif
+    for (size_t i = 0; i < particles.size(); ++i) {
+    //for (auto &p : particles) {
+        auto &p = particles[i];
+        Vector2i base_coord = (p.x*inv_dx - Vec2(0.5)).cast<int>(); // element-wise floor
         Vec2 fx = p.x * inv_dx - base_coord.cast<real>();
         Vec2 w[3]{
             Vec2(0.5) * sqr(Vec2(1.5) - fx),
