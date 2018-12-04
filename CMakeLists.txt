@@ -1,35 +1,41 @@
 cmake_minimum_required(VERSION 2.8.11)
 project(mlsmpm)
 
-find_package(Threads REQUIRED)
-find_package(OpenMP REQUIRED)
-
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+if(CMAKE_BUILD_TYPE STREQUAL "")
+    set(CMAKE_BUILD_TYPE Release)
+endif()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -ffast-math")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
-
+find_package(Threads REQUIRED)
 set(LIBRARIES ${LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
 )
+find_package(OpenMP)
+if(${OpenMP_FOUND})
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+endif()
 
 if(UNIX)
-    find_package(X11 REQUIRED)
-    set(LIBRARIES ${LIBRARIES}
-        ${X11_LIBRARIES}
-    )
-    set(INCLUDES ${INCLUDES}
-        ${X11_INCLUDE_DIR}
-    )
-endif(UNIX)
+    if(APPLE)
+        set(CMAKE_FIND_FRAMEWORK ONLY)
+        find_library(COCOA_LIBRARY Cocoa)
+        set(LIBRARIES ${LIBRARIES} ${COCOA_LIBRARY})
+    else()
+        find_package(X11 REQUIRED)
+        set(LIBRARIES ${LIBRARIES} ${X11_LIBRARIES})
+        set(INCLUDES ${INCLUDES} ${X11_INCLUDE_DIR})
+    endif()
+
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -ffast-math")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+endif()
 
 set(SOURCES
     mls-mpm88.cpp
