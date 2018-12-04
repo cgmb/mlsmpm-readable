@@ -38,10 +38,10 @@ if(UNIX)
 endif()
 
 set(SOURCES
-    mls-mpm88.cpp
+    mls-mpm.cpp
 )
 
-add_executable(mls-mpm88 ${SOURCES})
-target_link_libraries(mls-mpm88 ${LIBRARIES})
-target_include_directories(mls-mpm88 PRIVATE ${INCLUDES})
-target_compile_definitions(mls-mpm88 PRIVATE GLM_FORCE_CXX14=1 _USE_MATH_DEFINES=1)
+add_executable(mls-mpm ${SOURCES})
+target_link_libraries(mls-mpm ${LIBRARIES})
+target_include_directories(mls-mpm PRIVATE ${INCLUDES})
+target_compile_definitions(mls-mpm PRIVATE GLM_FORCE_CXX14=1 _USE_MATH_DEFINES=1)
