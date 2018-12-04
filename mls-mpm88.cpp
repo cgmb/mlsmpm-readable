@@ -147,7 +147,6 @@ void advance(real dt) {
         #pragma omp parallel for
     #endif
     for (size_t i = 0; i < particles.size(); ++i) {
-    //for (auto &p : particles) {
         auto &p = particles[i];
         Vector2i base_coord = (p.x*inv_dx - Vec2(0.5)).cast<int>(); // element-wise floor
         Vec2 fx = p.x * inv_dx - base_coord.cast<real>();
@@ -178,8 +177,10 @@ void advance(real dt) {
         Mat2 svd_u, sig, svd_v;
         svd(F, svd_u, sig, svd_v);
         // Snow Plasticity, MPM Course Notes Eq'n 82 (p.26)
-        for (int i = 0; i < 2 * int(plastic); i++) {
-            sig[i][i] = clamp(sig[i][i], 1.f - 2.5e-2f, 1.f + 7.5e-3f);
+        if (plastic) {
+          for (int i = 0; i < 2; i++) {
+              sig[i][i] = clamp(sig[i][i], 1.f - 2.5e-2f, 1.f + 7.5e-3f);
+          }
         }
         real oldJ = determinant(F);
         F = svd_u * sig * transposed(svd_v);
@@ -217,7 +218,7 @@ int main() {
             }
             // Update image
             gui.update();
-            // canvas.img.write_as_image(fmt::format("tmp/{:05d}.png", f++));
+            // canvas.img.write_as_image(fmt::format("tmp/{:05d}.png", i));
         }
     }
 } //----------------------------------------------------------------------------
