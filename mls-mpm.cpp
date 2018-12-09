@@ -8,17 +8,17 @@ using Mat2 = Matrix2;
 /* grid_resolution (cells) */
 const int n = 80,
       window_size = 800;
-const real dt = 1e-4_f,
-      frame_dt = 1e-3_f,
-      dx = 1.0_f / n,
-      inv_dx = 1.0_f / dx;
-auto particle_mass = 1.0_f,
-     vol = 1.0_f;
-auto hardening = 10.0_f,
-     E = 1e4_f,
-     nu = 0.2_f;
-real mu_0 = E / (2 * (1 + nu)),
-     lambda_0 = E * nu / ((1+nu) * (1 - 2 * nu));
+const real dt = 1e-4f,
+      frame_dt = 1e-3f,
+      dx = 1.f / n,
+      inv_dx = 1.f / dx;
+const real particle_mass = 1.f,
+           vol = 1.f;
+const real hardening = 10.f,
+           E = 1e4f,
+           nu = 0.2f;
+const real mu_0 = E / (2 * (1 + nu)),
+           lambda_0 = E * nu / ((1+nu) * (1 - 2 * nu));
 
 bool plastic = true;
 
@@ -59,7 +59,6 @@ void advance(real dt) {
         #pragma omp parallel for
     #endif
     for (size_t i = 0; i < particles.size(); ++i) {
-    //for (auto &p : particles) {
         auto &p = particles[i];
         // element-wise floor
         Vector2i base_coord = (p.x * inv_dx - Vec2(0.5)).cast<int>();
@@ -190,7 +189,7 @@ void advance(real dt) {
 }
 // Seed particles with position and color
 void add_object(Vec2 center, int c) {
-  // Randomly sample 1000 particles in the square
+  // Randomly sample particles in the square
     for (int i = 0; i < 500; i++) {
         particles.push_back(Particle((Vec2::rand()*2.f-Vec2(1))*0.08f + center, c));
     }
