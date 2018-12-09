@@ -1,4 +1,22 @@
-// 2D Moving Least Squares Material Point Method (MLS-MPM) [with comments]
+/* 2D Moving Least Squares Material Point Method (MLS-MPM) [with comments]
+   Based on taich_mpm v1.3 (Oct 30, 2018) by Yuanming Hu,
+   <https://github.com/yuanming-hu/taichi_mpm>.
+
+   88-Line MLS-MPM Copyright (C) 2018 Yuanming Hu
+   Readable MLS-MPM Copyright (C) 2018 The High Level Understanding Club
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License Version 3, as
+   published by the Free Software Foundation.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
 #define TC_IMAGE_IO
 #include "taichi.h"
 using namespace taichi;
@@ -253,7 +271,7 @@ A: Uncomment Ln 2 and 85 and create a folder named "tmp".
 
    where 60 stands for 60 FPS. A file named "video.mp4" is what you want.
 
-Based on taich_mpm v1.3 (Oct 30, 2018) by Yuanming Hu
-https://github.com/yuanming-hu/taichi_mpm
+Q: Who exactly are the High Level Understanding Club authors?
+A: Lakin Wecker and Cordell Bloor.
 
 ----------------------------------------------------------------------------- */
