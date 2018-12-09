@@ -1,2 +1,5 @@
-.release
+# build dirs
+/build
 
+# editor files
+*.swp
